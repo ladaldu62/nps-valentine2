@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Alertes RDV — La Valentine</title>
+<link rel="manifest" href="data:application/json,{
+  %22name%22:%22Alertes RDV La Valentine%22,
+  %22short_name%22:%22Alertes RDV%22,
+  %22start_url%22:%22.%22,
+  %22display%22:%22standalone%22,
+  %22background_color%22:%22%230D1117%22,
+  %22theme_color%22:%22%230D1117%22,
+  %22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230D1117'/%3E%3Ctext y='.9em' font-size='80'%3E%F0%9F%9A%A8%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]
+}">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Alertes RDV">
+<meta name="theme-color" content="#0D1117">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').classList.remove('hidden');
+});
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => {
+      deferredPrompt = null;
+      document.getElementById('install-banner').classList.add('hidden');
+    });
+  }
+}
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-banner').classList.add('hidden');
+});
+
+</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  :root{--bg:#0D1117;--card:#161B22;--border:#21262D;--green:#3FB950;--red:#F85149;--orange:#D29922;--blue:#58A6FF;--text:#E6EDF3;--muted:#7D8590}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;max-width:480px;margin:0 auto;display:flex;flex-direction:column}
+  .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:20}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s}
+  .dot.on{background:var(--green)}
+  .header-title{font-weight:800;font-size:15px;flex:1}
+  .header-sub{font-size:11px;color:var(--muted)}
+  .content{flex:1;padding-bottom:80px}
+  .bottom-nav{background:var(--card);border-top:1px solid var(--border);display:flex;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:20}
+  .tab-btn{flex:1;background:none;border:none;border-top:2px solid transparent;cursor:pointer;padding:12px 4px 16px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);font-size:11px;font-weight:600}
+  .tab-btn.active{border-top-color:var(--green);color:var(--green)}
+  .tab-icon{font-size:20px;line-height:1}
+  .section{padding:14px 14px 0}
+  .section-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
+  .badge{border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;display:inline-block}
+  .badge.p{background:#3FB95022;color:var(--green);border:1px solid #3FB95055}
+  .badge.pa{background:#D2992222;color:var(--orange);border:1px solid #D2992255}
+  .badge.d{background:#F8514922;color:var(--red);border:1px solid #F8514955}
+  .input{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font-size:13px;outline:none}
+  .input:focus{border-color:var(--blue)}
+  .btn-primary{background:var(--green);color:#0D1117;border:none;border-radius:10px;padding:14px;font-weight:800;font-size:15px;cursor:pointer;width:100%}
+  .btn-outline{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:9px;font-size:13px;cursor:pointer;width:100%;margin-top:8px}
+  .planning-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .del-btn{background:none;border:none;color:var(--red);font-size:22px;cursor:pointer;padding:0 2px;line-height:1;flex-shrink:0}
+  .alert-card{border-radius:12px;padding:14px;margin-bottom:10px;background:var(--card)}
+  .alert-card.red{border-left:3px solid var(--red);border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .alert-card.orange{border-left:3px solid var(--orange);border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .alert-header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .alert-nom{font-weight:800;font-size:15px}
+  .alert-heure{color:var(--muted);font-size:12px;margin-top:2px}
+  .alert-nps{font-size:13px;color:var(--muted);margin-top:8px}
+  .alert-comment{font-size:12px;color:var(--muted);font-style:italic;background:var(--bg);border-radius:6px;padding:7px 9px;margin-top:6px;line-height:1.5}
+  .alert-email{font-size:12px;color:var(--blue);margin-top:6px}
+  .alert-count{background:var(--red);color:#fff;border-radius:10px;padding:1px 9px;font-size:11px}
+  .empty-state{text-align:center;color:var(--muted);padding:48px 20px;font-size:14px;line-height:1.6}
+  .import-page{padding:32px 16px;display:flex;flex-direction:column;align-items:center;gap:20px}
+  .import-box{width:100%;max-width:340px;background:var(--card);border:2px dashed var(--border);border-radius:16px;padding:28px 20px;text-align:center}
+  .import-success{background:#3FB95011;border:1px solid #3FB95044;border-radius:10px;padding:12px 14px;font-size:13px;color:var(--green);text-align:center;width:100%;max-width:340px}
+  
+  .install-banner{background:linear-gradient(135deg,#161B22,#1a2233);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:14px;display:flex;align-items:center;gap:12px;cursor:pointer}
+  .install-banner.hidden{display:none}
+  .install-icon{font-size:28px;flex-shrink:0}
+  .install-text{flex:1}
+  .install-title{font-weight:700;font-size:13px}
+  .install-sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .install-btn{background:var(--green);color:#0D1117;border:none;border-radius:8px;padding:8px 14px;font-weight:800;font-size:12px;cursor:pointer;flex-shrink:0}
+
+  .error-msg{color:var(--red);font-size:12px;margin-top:10px}
+  #page-import,#page-alertes{display:none}
+  .active-page{display:block!important}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="dot" id="dot"></div>
+  <span class="header-title">Alertes RDV — La Valentine</span>
+  <span class="header-sub" id="header-sub"></span>
+</div>
+
+
+<div class="install-banner hidden" id="install-banner">
+  <div class="install-icon">📱</div>
+  <div class="install-text">
+    <div class="install-title">Installer l'app</div>
+    <div class="install-sub">Ajouter à l'écran d'accueil</div>
+  </div>
+  <button class="install-btn" onclick="installApp()">Installer</button>
+</div>
+
+<div class="content">
+
+  <!-- PAGE IMPORT -->
+  <div id="page-import" class="active-page">
+    <div class="import-page">
+      <div style="text-align:center">
+        <div style="font-size:48px;margin-bottom:10px">📥</div>
+        <div style="font-size:20px;font-weight:800">Charger les données NPS</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:6px">Téléchargez le fichier depuis Google Sheets</div>
+      </div>
+
+      <div class="import-box" id="import-box">
+        <div style="font-size:32px;margin-bottom:12px">📂</div>
+        <div style="color:var(--muted);font-size:13px;margin-bottom:18px">Appuyez pour sélectionner votre fichier</div>
+        <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none">
+        <button class="btn-primary" onclick="document.getElementById('file-input').click()">
+          Choisir le fichier xlsx
+        </button>
+        <div id="import-error" class="error-msg"></div>
+      </div>
+
+      <div id="import-success" class="import-success" style="display:none"></div>
+
+      <div style="font-size:11px;color:var(--muted);text-align:center;max-width:280px;line-height:1.6">
+        🔒 Fichier lu localement — aucune donnée envoyée sur internet
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE ALERTES -->
+  <div id="page-alertes">
+    <div class="section" style="padding-top:16px">
+
+      <div class="section-title">Planning du jour</div>
+      <div class="card">
+        <div id="planning-rows"></div>
+        <button class="btn-outline" onclick="addRow()">+ Ajouter un client</button>
+      </div>
+
+      <div class="section-title" id="alertes-title">
+        Alertes détracteurs & passifs
+      </div>
+      <div id="alertes-list"></div>
+
+    </div>
+  </div>
+
+</div>
+
+<nav class="bottom-nav">
+  <button class="tab-btn" onclick="showTab('alertes')" id="tab-alertes">
+    <span class="tab-icon">🚨</span>Alertes
+  </button>
+  <button class="tab-btn active" onclick="showTab('import')" id="tab-import">
+    <span class="tab-icon">📥</span>Import
+  </button>
+</nav>
+
+<script>
+let clients = [];
+let planning = [{heure:'',nom:''}];
+
+// ── IMPORT ──────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const err = document.getElementById('import-error');
+  err.textContent = '';
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
+      const sheet = wb.Sheets['📥 Import'];
+      if (!sheet) throw new Error("Feuille '📥 Import' introuvable");
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header:['_','touchpoint','mag','date','nps','comment','nom','email','segment'],
+        range:5, defval:''
+      });
+      clients = rows.filter(r => r.nom && r.nps !== '').map(r => {
+        const nps = parseFloat(r.nps);
+        const d = r.date instanceof Date ? r.date : new Date(r.date);
+        return {
+          nom: String(r.nom).trim().toUpperCase(),
+          email: r.email || '',
+          nps, comment: r.comment || '',
+          date: isNaN(d.getTime()) ? null : d,
+          segment: nps>=9 ? 'Promoteur' : nps>=7 ? 'Passif' : 'Détracteur'
+        };
+      }).filter(r => !isNaN(r.nps));
+
+      if (!clients.length) throw new Error("Aucune donnée trouvée");
+
+      // Récupère le planning depuis le fichier si dispo
+      const alertSheet = wb.Sheets['🚨 Alertes RDV'];
+      if (alertSheet) {
+        const planRows = XLSX.utils.sheet_to_json(alertSheet, {header:['_','heure','nom'], range:5, defval:''});
+        const loaded = planRows.filter(r => r.nom && String(r.nom).trim())
+          .map(r => ({heure: r.heure||'', nom: String(r.nom).trim().toUpperCase()}));
+        if (loaded.length) planning = loaded;
+      }
+
+      document.getElementById('dot').classList.add('on');
+      document.getElementById('header-sub').textContent = clients.length + ' réponses';
+      document.getElementById('import-box').style.display = 'none';
+      document.getElementById('import-success').style.display = 'block';
+      document.getElementById('import-success').innerHTML =
+        `✅ ${clients.length} réponses chargées<br><span style="color:var(--muted);font-size:11px">Onglet Alertes prêt</span>`;
+      refreshPlanning();
+      renderAlertes();
+      showTab('alertes');
+    } catch(e) {
+      document.getElementById('import-error').textContent = '⚠ ' + e.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// ── TABS ─────────────────────────────────────────────────────
+function showTab(name) {
+  document.getElementById('page-alertes').classList.remove('active-page');
+  document.getElementById('page-import').classList.remove('active-page');
+  document.getElementById('tab-alertes').classList.remove('active');
+  document.getElementById('tab-import').classList.remove('active');
+  document.getElementById('page-'+name).classList.add('active-page');
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelector('.content').scrollTop = 0;
+}
+
+// ── PLANNING ─────────────────────────────────────────────────
+function refreshPlanning() {
+  document.getElementById('planning-rows').innerHTML = planning.map((r,i) => `
+    <div class="planning-row">
+      <input class="input" value="${r.heure}" placeholder="08:00"
+        oninput="planning[${i}].heure=this.value"
+        style="width:64px;flex-shrink:0">
+      <input class="input" value="${r.nom}" placeholder="NOM CLIENT"
+        oninput="planning[${i}].nom=this.value.toUpperCase();this.value=this.value.toUpperCase();debounce()"
+        style="flex:1;text-transform:uppercase">
+      <button class="del-btn" onclick="removeRow(${i})">×</button>
+    </div>`).join('');
+}
+
+let t;
+function debounce(){clearTimeout(t);t=setTimeout(renderAlertes,300);}
+function addRow(){planning.push({heure:'',nom:''});refreshPlanning();}
+function removeRow(i){planning.splice(i,1);if(!planning.length)planning.push({heure:'',nom:''});refreshPlanning();renderAlertes();}
+
+// ── ALERTES ──────────────────────────────────────────────────
+function renderAlertes() {
+  const alertes = planning.filter(p => p.nom.trim()).map(p => {
+    const nom = p.nom.trim().toUpperCase();
+    const matches = clients.filter(c =>
+      c.nom.includes(nom) || nom.split(' ').some(part => part.length > 2 && c.nom.includes(part))
+    );
+    const emails = [...new Set(matches.map(m => m.email).filter(Boolean))];
+    const isHomo = emails.length > 1;
+    const hit = matches.find(c => c.segment !== 'Promoteur');
+    return {heure: p.heure, nom, isHomo, hit};
+  }).filter(a => a.isHomo || a.hit);
+
+  const title = document.getElementById('alertes-title');
+  title.innerHTML = 'Alertes détracteurs & passifs'
+    + (alertes.length ? ` <span class="alert-count">${alertes.length}</span>` : '');
+
+  if (!alertes.length) {
+    document.getElementById('alertes-list').innerHTML = `<div class="empty-state">
+      ${!clients.length
+        ? '📥 Importez d\'abord le fichier NPS'
+        : planning.filter(p=>p.nom).length === 0
+          ? 'Saisissez les clients du planning'
+          : '✅ Aucun détracteur ni passif<br>dans le planning du jour'}
+    </div>`;
+    return;
+  }
+
+  document.getElementById('alertes-list').innerHTML = alertes.map(a => {
+    const seg = a.hit ? (a.hit.segment==='Passif'?'pa':'d') : '';
+    const col = a.isHomo ? 'orange' : 'red';
+    return `<div class="alert-card ${col}">
+      <div class="alert-header">
+        <div>
+          <div class="alert-nom">${a.nom}</div>
+          ${a.heure ? `<div class="alert-heure">⏰ ${a.heure}</div>` : ''}
+        </div>
+        ${a.isHomo
+          ? `<span style="color:var(--orange);font-size:12px;font-weight:700">⚠ Homonymes</span>`
+          : `<span class="badge ${seg}">${a.hit.segment}</span>`}
+      </div>
+      ${!a.isHomo && a.hit ? `
+        <div class="alert-nps">
+          NPS <b style="font-size:16px;color:${a.hit.nps<7?'#F85149':'#D29922'}">${a.hit.nps}/10</b>
+          ${a.hit.date ? ' · ' + a.hit.date.toLocaleDateString('fr-FR') : ''}
+        </div>
+        ${a.hit.comment ? `<div class="alert-comment">"${a.hit.comment.slice(0,120)}${a.hit.comment.length>120?'…':''}"</div>` : ''}
+        ${a.hit.email ? `<div class="alert-email">📧 ${a.hit.email}</div>` : ''}
+      ` : ''}
+    </div>`;
+  }).join('');
+}
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').classList.remove('hidden');
+});
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => {
+      deferredPrompt = null;
+      document.getElementById('install-banner').classList.add('hidden');
+    });
+  }
+}
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-banner').classList.add('hidden');
+});
+
+</script>
+</body>
+</html>
