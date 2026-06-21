@@ -301,8 +301,25 @@ document.getElementById('planning-file-input').addEventListener('change', functi
       try {
         const wb = XLSX.read(ev.target.result, {type:'array'});
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
-        if (!rows.length) throw new Error("Fichier vide");
+
+        // Cherche la ligne d'en-tête contenant "Heure" et "Nom"/"Client"
+        const sr = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+        let headerRowIdx = -1;
+        for (let r = sr.s.r; r <= Math.min(sr.e.r, 25); r++) {
+          const vals = [];
+          for (let c = sr.s.c; c <= Math.min(sr.e.c, 10); c++) {
+            const cell = sheet[XLSX.utils.encode_cell({r, c})];
+            if (cell && cell.v != null) vals.push(String(cell.v).toLowerCase().trim());
+          }
+          if (vals.some(v => /^heure/.test(v)) && vals.some(v => /nom|client/.test(v))) {
+            headerRowIdx = r;
+            break;
+          }
+        }
+        if (headerRowIdx === -1) throw new Error("En-têtes 'Heure' et 'Nom Client' introuvables");
+
+        const rows = XLSX.utils.sheet_to_json(sheet, {range: headerRowIdx, defval:''});
+        if (!rows.length) throw new Error("Aucune donnée trouvée");
         const keys = Object.keys(rows[0]);
         const hKey = keys.find(k => /heure|time/i.test(k)) || keys[0];
         const nKey = keys.find(k => /nom|name|client/i.test(k)) || keys[1] || keys[0];
