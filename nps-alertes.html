@@ -220,21 +220,48 @@ document.getElementById('file-input').addEventListener('change', function(e) {
       const wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
       const sheet = wb.Sheets['📥 Import'];
       if (!sheet) throw new Error("Feuille '📥 Import' introuvable");
-      const rows = XLSX.utils.sheet_to_json(sheet, {
-        header:['_','touchpoint','mag','date','nps','comment','nom','email','segment'],
-        range:5, defval:''
-      });
-      clients = rows.filter(r => r.nom && r.nps !== '').map(r => {
-        const nps = parseFloat(r.nps);
-        const d = r.date instanceof Date ? r.date : new Date(r.date);
+
+      // Détecte automatiquement la ligne d'en-tête (cherche NPS + Nom)
+      const sr = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+      let hRow = 3;
+      for (let r = sr.s.r; r <= Math.min(sr.e.r, 10); r++) {
+        const vals = [];
+        for (let c = sr.s.c; c <= Math.min(sr.e.c, 15); c++) {
+          const cell = sheet[XLSX.utils.encode_cell({r, c})];
+          if (cell && cell.v != null) vals.push(String(cell.v).trim());
+        }
+        if (vals.some(v => /^nps$/i.test(v)) && vals.some(v => /nom|email/i.test(v))) {
+          hRow = r; break;
+        }
+      }
+
+      const rows = XLSX.utils.sheet_to_json(sheet, {range: hRow, defval:''});
+      if (!rows.length) throw new Error("Aucune donnée trouvée");
+
+      // Détecte les colonnes par leur nom réel
+      const keys = Object.keys(rows[0]);
+      const npsKey   = keys.find(k => /^nps$/i.test(k.trim()));
+      const nomKey   = keys.find(k => /nom.*client/i.test(k) || k.includes('👤')) || keys.find(k => /^nom/i.test(k));
+      const emailKey = keys.find(k => /email/i.test(k) || k.includes('📧'));
+      const comKey   = keys.find(k => /comment/i.test(k));
+      const dateKey  = keys.find(k => /^date$/i.test(k.trim()));
+      if (!npsKey) throw new Error("Colonne NPS introuvable dans l'onglet Import");
+      if (!nomKey) throw new Error("Colonne Nom Client introuvable dans l'onglet Import");
+
+      clients = rows.filter(r => r[nomKey] && String(r[nomKey]).trim() && r[npsKey] !== '').map(r => {
+        const nps = parseFloat(r[npsKey]);
+        let d = r[dateKey];
+        // Convertit serial Excel en Date JS si nécessaire
+        if (typeof d === 'number') d = new Date((d - 25569) * 86400000);
+        else if (!(d instanceof Date)) d = d ? new Date(d) : null;
         return {
-          nom: String(r.nom).trim().toUpperCase(),
-          email: r.email || '',
-          nps, comment: r.comment || '',
-          date: isNaN(d.getTime()) ? null : d,
+          nom: String(r[nomKey]).trim().toUpperCase(),
+          email: r[emailKey] || '',
+          nps, comment: r[comKey] || '',
+          date: d && !isNaN(d.getTime()) ? d : null,
           segment: nps>=9 ? 'Promoteur' : nps>=7 ? 'Passif' : 'Détracteur'
         };
-      }).filter(r => !isNaN(r.nps));
+      }).filter(r => !isNaN(r.nps) && r.nps >= 0 && r.nps <= 10);
       if (!clients.length) throw new Error("Aucune donnée trouvée");
 
       const alertSheet = wb.Sheets['🚨 Alertes RDV'];
