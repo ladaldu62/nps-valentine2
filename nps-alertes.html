@@ -123,6 +123,14 @@
 
       <div id="import-success" class="import-success" style="display:none"></div>
 
+      <div style="width:100%;max-width:340px">
+        <input type="file" id="file-input-update" accept=".xlsx,.xls" style="display:none">
+        <button class="btn-outline" style="margin-top:0" onclick="document.getElementById('file-input-update').click()">
+          🔄 Mettre à jour les données NPS
+        </button>
+        <div id="import-update-error" class="error-msg"></div>
+      </div>
+
       <div style="font-size:11px;color:var(--muted);text-align:center;max-width:280px;line-height:1.6">
         🔒 Fichier lu localement — aucune donnée envoyée sur internet
       </div>
@@ -210,10 +218,8 @@ function saveDismissed() {
 }
 
 // ── IMPORT NPS ───────────────────────────────────────────────
-document.getElementById('file-input').addEventListener('change', function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  document.getElementById('import-error').textContent = '';
+function importNpsFile(file, errElId) {
+  document.getElementById(errElId).textContent = '';
   const reader = new FileReader();
   reader.onload = function(ev) {
     try {
@@ -251,7 +257,6 @@ document.getElementById('file-input').addEventListener('change', function(e) {
       clients = rows.filter(r => r[nomKey] && String(r[nomKey]).trim() && r[npsKey] !== '').map(r => {
         const nps = parseFloat(r[npsKey]);
         let d = r[dateKey];
-        // Convertit serial Excel en Date JS si nécessaire
         if (typeof d === 'number') d = new Date((d - 25569) * 86400000);
         else if (!(d instanceof Date)) d = d ? new Date(d) : null;
         return {
@@ -283,10 +288,17 @@ document.getElementById('file-input').addEventListener('change', function(e) {
       renderAlertes();
       showTab('alertes');
     } catch(e) {
-      document.getElementById('import-error').textContent = '⚠ ' + e.message;
+      document.getElementById(errElId).textContent = '⚠ ' + e.message;
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+document.getElementById('file-input').addEventListener('change', function(e) {
+  if (e.target.files[0]) importNpsFile(e.target.files[0], 'import-error');
+});
+document.getElementById('file-input-update').addEventListener('change', function(e) {
+  if (e.target.files[0]) { importNpsFile(e.target.files[0], 'import-update-error'); this.value = ''; }
 });
 
 // ── IMPORT PLANNING ──────────────────────────────────────────
